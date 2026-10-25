@@ -1,0 +1,16 @@
+{
+  "name": "SomnoSloth",
+  "short_name": "SomnoSloth",
+  "description": "Zero-cloud offline wind-down companion for effortless sleep.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090A0F",
+  "theme_color": "#090A0F",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
