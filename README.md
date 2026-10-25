@@ -27,8 +27,13 @@ Rather than streaming large MP3 files that stutter, consume mobile data, and loo
 - **Cozy Hearth:** Brownian noise with randomized impulse crackle through a resonant bandpass filter (320 Hz cutoff, Q=1.8).
 - **Deep Cosmos:** Dual sine oscillators at 108 Hz and 110 Hz producing an organic **2 Hz binaural delta beat** to ease cognitive arousal.
 
-### 2. Sentence-Chunked Sleep Narrator
-A known issue with mobile browser `SpeechSynthesis` is that long paragraphs get abruptly truncated mid-sentence by browser audio daemons. SomnoSloth splits all bedtime narratives into individual sentence chunks (`story.match(/[^.!?\n]+[.!?\n]+/g)`) and queues them sequentially using `onend` callbacks with natural 450ms breath pauses, spoken at a relaxed 0.8x cadence.
+### 2. Sentence-Chunked Sleep Narrator with Curated Bedtime Voices
+A known issue with mobile browser `SpeechSynthesis` is that long paragraphs get abruptly truncated mid-sentence by browser audio daemons. SomnoSloth splits all bedtime narratives into individual sentence chunks (`story.match(/[^.!?\n]+[.!?\n]+/g)`) and queues them sequentially using `onend` callbacks with natural 450ms breath pauses.
+
+Users can choose between three curated 100% offline narrator profiles (plus any installed system voice):
+- **Willow:** Soft & gentle cadence (slightly higher pitch, 0.8x cadence, female profile preference).
+- **Cedar:** Deep & grounded warmth (low pitch, 0.75x cadence, male profile preference).
+- **Quiet Drift:** Slow, hypnotic rhythm (neutral pitch, 0.7x whisper cadence).
 
 ### 3. Hardware-Accurate Sleep Fade
 Rather than using JavaScript `setInterval` timers (which drift or stall when phone screens lock), volume fading is scheduled directly onto the audio hardware clock:

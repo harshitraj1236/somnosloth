@@ -1,14 +1,71 @@
+import type { VoiceStyle, VoicePreset } from "../../types/sleep";
+
+/**
+ * Curated Bedtime Narrator Profiles
+ * Soft, low-tempo vocal settings mapped to local system voices.
+ */
+export const VOICE_PRESETS: Record<VoiceStyle, VoicePreset> = {
+  willow: {
+    id: "willow",
+    name: "Willow",
+    tone: "Soft & gentle cadence",
+    pitch: 0.95,
+    rate: 0.8,
+    genderPreference: "female",
+  },
+  cedar: {
+    id: "cedar",
+    name: "Cedar",
+    tone: "Deep & grounded warmth",
+    pitch: 0.75,
+    rate: 0.75,
+    genderPreference: "male",
+  },
+  drift: {
+    id: "drift",
+    name: "Quiet Drift",
+    tone: "Slow, hypnotic rhythm",
+    pitch: 0.82,
+    rate: 0.7,
+    genderPreference: "neutral",
+  },
+};
+
+export function getSystemVoices(): SpeechSynthesisVoice[] {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+    return [];
+  }
+  return window.speechSynthesis.getVoices();
+}
+
 /**
  * Sentence-Chunked Native Speech Narrator
  * Uses window.speechSynthesis, splitting text into small sentences
  * to prevent mobile browser utterance truncation bugs.
  */
-
 export class SleepNarrator {
   private isSpeaking = false;
   private currentUtteranceIndex = 0;
   private sentences: string[] = [];
   private wakeLock: any = null;
+  private currentStyle: VoiceStyle = "willow";
+  private customVoiceURI: string | null = null;
+
+  setVoiceStyle(style: VoiceStyle): void {
+    this.currentStyle = style;
+  }
+
+  setCustomVoiceURI(uri: string | null): void {
+    this.customVoiceURI = uri;
+  }
+
+  getVoiceStyle(): VoiceStyle {
+    return this.currentStyle;
+  }
+
+  getCustomVoiceURI(): string | null {
+    return this.customVoiceURI;
+  }
 
   async speak(text: string, onDone?: () => void): Promise<void> {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
@@ -52,8 +109,41 @@ export class SleepNarrator {
     }
 
     const utterance = new SpeechSynthesisUtterance(sentence);
-    utterance.rate = 0.8; // Slow, calming tempo
-    utterance.pitch = 0.85; // Warm, gentle pitch
+    const preset = VOICE_PRESETS[this.currentStyle] || VOICE_PRESETS.willow;
+    utterance.rate = preset.rate;
+    utterance.pitch = preset.pitch;
+
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      const allVoices = window.speechSynthesis.getVoices();
+      let matchedVoice: SpeechSynthesisVoice | undefined;
+
+      if (this.customVoiceURI) {
+        matchedVoice = allVoices.find((v) => v.voiceURI === this.customVoiceURI);
+      }
+
+      if (!matchedVoice && allVoices.length > 0) {
+        const englishVoices = allVoices.filter((v) => v.lang.startsWith("en"));
+        const candidatePool = englishVoices.length > 0 ? englishVoices : allVoices;
+
+        if (preset.genderPreference === "female") {
+          matchedVoice =
+            candidatePool.find((v) =>
+              /female|samantha|serena|karen|victoria|zira|moira|fiona|susan/i.test(v.name)
+            ) || candidatePool[0];
+        } else if (preset.genderPreference === "male") {
+          matchedVoice =
+            candidatePool.find((v) =>
+              /male|daniel|david|guy|alex|oliver|george|rishi/i.test(v.name)
+            ) || candidatePool[0];
+        } else {
+          matchedVoice = candidatePool[0];
+        }
+      }
+
+      if (matchedVoice) {
+        utterance.voice = matchedVoice;
+      }
+    }
 
     utterance.onend = () => {
       this.currentUtteranceIndex++;

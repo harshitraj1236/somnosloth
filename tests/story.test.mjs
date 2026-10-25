@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { StoryEngine } from "../src/lib/story/engine.ts";
 import { checkDistressHeuristic, CRISIS_RESOURCE } from "../src/lib/safety/crisis.ts";
+import { SleepNarrator, VOICE_PRESETS } from "../src/lib/audio/speech.ts";
 
 const engine = new StoryEngine();
 
@@ -63,4 +64,24 @@ test("StoryEngine: guarantees slow, non-violent narrative (no banned action word
       );
     }
   }
+});
+
+test("SleepNarrator: provides distinct calming voice presets", () => {
+  assert.ok(VOICE_PRESETS.willow, "Willow voice preset must exist");
+  assert.ok(VOICE_PRESETS.cedar, "Cedar voice preset must exist");
+  assert.ok(VOICE_PRESETS.drift, "Drift voice preset must exist");
+
+  // Calming tempo requirements (rate <= 0.85, pitch in soothing range)
+  assert.ok(VOICE_PRESETS.willow.rate <= 0.85);
+  assert.ok(VOICE_PRESETS.cedar.pitch < 0.8);
+  assert.ok(VOICE_PRESETS.drift.rate <= 0.75);
+
+  const narrator = new SleepNarrator();
+  assert.strictEqual(narrator.getVoiceStyle(), "willow");
+
+  narrator.setVoiceStyle("cedar");
+  assert.strictEqual(narrator.getVoiceStyle(), "cedar");
+
+  narrator.setCustomVoiceURI("com.apple.speech.synthesis.voice.daniel");
+  assert.strictEqual(narrator.getCustomVoiceURI(), "com.apple.speech.synthesis.voice.daniel");
 });

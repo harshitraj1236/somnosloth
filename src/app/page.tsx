@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import type { SoundscapeType, SleepTimerMinutes, AIEngineType } from "../types/sleep";
+import type { SoundscapeType, SleepTimerMinutes, AIEngineType, VoiceStyle } from "../types/sleep";
 import { ProceduralSoundscape } from "../lib/audio/procedural";
-import { SleepNarrator } from "../lib/audio/speech";
+import { SleepNarrator, VOICE_PRESETS } from "../lib/audio/speech";
 import { storyEngine } from "../lib/story/engine";
 import { checkDistressHeuristic, CRISIS_RESOURCE } from "../lib/safety/crisis";
 
@@ -81,9 +81,31 @@ const SOUNDSCAPES: SoundscapeOption[] = [
   },
 ];
 
+const VOICE_OPTIONS: { id: VoiceStyle; name: string; description: string }[] = [
+  {
+    id: "willow",
+    name: "Willow",
+    description: "Soft & gentle",
+  },
+  {
+    id: "cedar",
+    name: "Cedar",
+    description: "Deep & grounded",
+  },
+  {
+    id: "drift",
+    name: "Quiet Drift",
+    description: "Slow & hypnotic",
+  },
+];
+
 export default function Home() {
   const [soundscape, setSoundscape] = useState<SoundscapeType>("rain");
   const [timerMinutes, setTimerMinutes] = useState<SleepTimerMinutes>(30);
+  const [voiceStyle, setVoiceStyle] = useState<VoiceStyle>("willow");
+  const [customVoiceURI, setCustomVoiceURI] = useState<string | null>(null);
+  const [systemVoices, setSystemVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [showSystemVoicePicker, setShowSystemVoicePicker] = useState(false);
   const [brainDump, setBrainDump] = useState("");
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -105,12 +127,29 @@ export default function Home() {
     soundscapeRef.current = new ProceduralSoundscape();
     narratorRef.current = new SleepNarrator();
 
+    // Load offline system voices
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      const loadVoices = () => {
+        const voices = window.speechSynthesis.getVoices();
+        if (voices.length > 0) {
+          setSystemVoices(voices);
+        }
+      };
+      loadVoices();
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+
+    // Check service worker status
     if (typeof window !== "undefined" && "serviceWorker" in navigator) {
       if (navigator.serviceWorker.controller) {
         setIsOfflineReady(true);
       } else {
         navigator.serviceWorker.ready.then(() => setIsOfflineReady(true));
       }
+
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        setIsOfflineReady(true);
+      });
     }
 
     return () => {
@@ -135,6 +174,24 @@ export default function Home() {
     soundscapeRef.current?.setVolume(newVol);
   };
 
+  // Voice selection handlers
+  const handleVoiceChange = (style: VoiceStyle) => {
+    setVoiceStyle(style);
+    setCustomVoiceURI(null);
+    narratorRef.current?.setVoiceStyle(style);
+    narratorRef.current?.setCustomVoiceURI(null);
+  };
+
+  const handleCustomVoiceChange = (uri: string) => {
+    if (!uri) {
+      setCustomVoiceURI(null);
+      narratorRef.current?.setCustomVoiceURI(null);
+    } else {
+      setCustomVoiceURI(uri);
+      narratorRef.current?.setCustomVoiceURI(uri);
+    }
+  };
+
   // Start the Wind Down Routine
   const handleStartWindDown = async () => {
     if (isPlaying) {
@@ -156,7 +213,9 @@ export default function Home() {
     setStoryExcerpt(story.text.slice(0, 140) + "...");
     setActiveEngine(story.engine);
 
-    // 3. Begin sentence-chunked native speech
+    // 3. Configure voice and begin sentence-chunked native speech
+    narratorRef.current?.setVoiceStyle(voiceStyle);
+    narratorRef.current?.setCustomVoiceURI(customVoiceURI);
     narratorRef.current?.speak(story.text);
 
     // 4. Drive volume fade with linearRampToValueAtTime
@@ -194,6 +253,10 @@ export default function Home() {
 
   const currentSoundTitle =
     SOUNDSCAPES.find((s) => s.id === soundscape)?.title || "Rain on leaves";
+
+  const currentVoiceName = customVoiceURI
+    ? systemVoices.find((v) => v.voiceURI === customVoiceURI)?.name || "Custom"
+    : VOICE_PRESETS[voiceStyle].name;
 
   return (
     <main className="min-h-screen max-w-[560px] mx-auto px-5 py-8 md:py-12 flex flex-col justify-between">
@@ -278,7 +341,87 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Section 2: Timer Segmented Control */}
+        {/* Section 2: Bedtime Voice */}
+        <section className="space-y-2.5">
+          <div className="flex items-baseline justify-between">
+            <h2 className="font-serif text-[18px] text-[#ebe3d2] font-normal">
+              Bedtime voice
+            </h2>
+            {systemVoices.length > 0 && (
+              <button
+                type="button"
+                disabled={isPlaying}
+                onClick={() => setShowSystemVoicePicker(!showSystemVoicePicker)}
+                className="text-xs text-[#b3a78f] hover:text-[#ebe3d2] transition-colors cursor-pointer"
+              >
+                {showSystemVoicePicker ? "Hide system voices" : "System voices"}
+              </button>
+            )}
+          </div>
+
+          <div
+            role="radiogroup"
+            aria-label="Bedtime voice"
+            className="grid grid-cols-3 gap-2"
+          >
+            {VOICE_OPTIONS.map((item) => {
+              const isSelected = voiceStyle === item.id && !customVoiceURI;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={isSelected}
+                  disabled={isPlaying}
+                  onClick={() => handleVoiceChange(item.id)}
+                  className={`p-3 rounded-[6px] border text-left flex flex-col justify-between transition-colors duration-200 cursor-pointer ${
+                    isSelected
+                      ? "border-[#9aab6a] bg-[#28221b] text-[#ebe3d2]"
+                      : "border-[#3a3228] bg-[#1f1a14] hover:bg-[#262019] text-[#b3a78f] disabled:opacity-40"
+                  }`}
+                >
+                  <div className="text-[14px] font-medium text-[#ebe3d2]">
+                    {item.name}
+                  </div>
+                  <div className="text-[11px] text-[#b3a78f] pt-0.5">
+                    {item.description}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {showSystemVoicePicker && systemVoices.length > 0 && (
+            <div className="pt-1.5 space-y-1">
+              <label
+                htmlFor="system-voice-select"
+                className="text-xs text-[#b3a78f] block"
+              >
+                Or pick an installed offline voice:
+              </label>
+              <select
+                id="system-voice-select"
+                disabled={isPlaying}
+                value={customVoiceURI || ""}
+                onChange={(e) => handleCustomVoiceChange(e.target.value)}
+                className="w-full text-xs p-2 rounded-[6px] border border-[#3a3228] bg-[#1a1611] text-[#ebe3d2] focus:outline-none"
+              >
+                <option value="">
+                  Use preset ({VOICE_PRESETS[voiceStyle].name})
+                </option>
+                {systemVoices
+                  .filter((v) => v.lang.startsWith("en") || !v.lang)
+                  .map((v) => (
+                    <option key={v.voiceURI} value={v.voiceURI}>
+                      {v.name} ({v.lang})
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
+        </section>
+
+        {/* Section 3: Timer Segmented Control */}
         <section className="space-y-2.5">
           <h2 className="font-serif text-[18px] text-[#ebe3d2] font-normal">
             How long should it play?
@@ -314,7 +457,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Section 3: Brain Dump Notepad */}
+        {/* Section 4: Brain Dump Notepad */}
         <section className="space-y-2.5">
           <h2 className="font-serif text-[18px] text-[#ebe3d2] font-normal">
             Anything on your mind?
@@ -357,7 +500,7 @@ export default function Home() {
         {/* Primary Action Button & Live Summary */}
         <div className="space-y-2 pt-1">
           <div className="text-sm text-[#b3a78f]">
-            {currentSoundTitle}, fading out over {timerMinutes} minutes
+            {currentSoundTitle}, {currentVoiceName} voice, fading out over {timerMinutes} minutes
           </div>
           <button
             type="button"
